@@ -80,6 +80,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   </div>
   <div class="acts">
     <button id="instGo" class="btn primary" type="button">تثبيت</button>
+    <button id="instDone" class="btn primary" type="button" hidden>ثبّتُّ التطبيق</button>
     <button id="instNo" class="btn plain" type="button">ليس الآن</button>
   </div>
 </aside>
@@ -89,10 +90,9 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   'use strict';
 
   /* ===== الإعدادات ===== */
-  var APP_URL = 'https://script.google.com/macros/s/AKfycbyAh07OX_96nmbQ01GcEftcQWsiFMapfmX_tUK2yKBUU_CJXv9YEZrkYuccX1I1P0_nlw/exec';
+  var APP_URL = 'https://script.google.com/a/~/macros/s/AKfycbyAh07OX_96nmbQ01GcEftcQWsiFMapfmX_tUK2yKBUU_CJXv9YEZrkYuccX1I1P0_nlw/exec';
   var READY_TIMEOUT = 35000;   // أقصى انتظار لإشارة «تم تحميل الموقع» (ملي ثانية)
-  var ASK_DAYS = 30;           // أقل مدة بين ظهورين لنافذة التثبيت لمن لم يثبّت
-  var K_INST = 'hn_shell_installed', K_ASK = 'hn_shell_asked';
+  var K_INST = 'hn_shell_installed';   // آيفون: يُحفظ عند ضغط «ثبّتُّ التطبيق». أندرويد: يعتمد على حدث كروم، لا على هذا المفتاح
 
   /* ===== أدوات ===== */
   var $ = function (id) { return document.getElementById(id); };
@@ -208,35 +208,33 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   window.addEventListener('online', function () { if (failed && msgKind === 'offline') start(); });
   $('msgBtn').addEventListener('click', start);
 
-  /* ===== التثبيت: مرة واحدة، ولا يظهر لمن ثبّت ===== */
+  /* ===== التثبيت: يظهر في كل فتح لمن لم يثبّت (آيفون: يختفي نهائياً بزر «ثبّتُّ التطبيق») ===== */
   var deferred = null, offerReady = false, shown = false;
 
   function eligible() {
     if (isStandalone()) { put(K_INST, '1'); return false; }
-    if (get(K_INST)) return false;
-    var t = parseInt(get(K_ASK), 10) || 0;
-    if (t && Date.now() - t < ASK_DAYS * 864e5) return false;
     return true;
   }
   function openSheet(kind) {
-    shown = true; put(K_ASK, String(Date.now()));
+    shown = true;
     if (kind === 'ios') {
       $('instB').innerHTML = 'اضغط زر المشاركة <svg class="share" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg> ثم اختر «إضافة إلى الشاشة الرئيسية».';
-      $('instGo').hidden = true; $('instNo').textContent = 'حسناً';
+      $('instGo').hidden = true; $('instDone').hidden = false; $('instNo').textContent = 'ليس الآن';
     } else {
       $('instB').textContent = 'يفتح مباشرة كتطبيق، بلا شريط المتصفح.';
-      $('instGo').hidden = false; $('instNo').textContent = 'ليس الآن';
+      $('instGo').hidden = false; $('instDone').hidden = true; $('instNo').textContent = 'ليس الآن';
     }
     $('inst').hidden = false;
   }
   function maybeOffer() {
     if (!offerReady || shown || failed || !eligible()) return;
-    if (deferred) openSheet('android');
-    else if (IOS && !INAPP) openSheet('ios');
+    if (deferred) openSheet('android');                       // كروم لا يرسل الحدث إن كان التطبيق مثبّتاً
+    else if (IOS && !INAPP && !get(K_INST)) openSheet('ios'); // آيفون: لا طريقة لمعرفة التثبيت، فنعتمد على زر «ثبّتُّ التطبيق»
   }
   window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); deferred = e; maybeOffer(); });
   window.addEventListener('appinstalled', function () { put(K_INST, '1'); deferred = null; $('inst').hidden = true; });
   $('instNo').addEventListener('click', function () { $('inst').hidden = true; });
+  $('instDone').addEventListener('click', function () { put(K_INST, '1'); $('inst').hidden = true; });
   $('instGo').addEventListener('click', function () {
     var d = deferred; $('inst').hidden = true;
     if (!d) return;
