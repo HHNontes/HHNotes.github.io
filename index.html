@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>H Notes</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#065A7E">
+<meta name="color-scheme" content="light">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="H Notes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<style>
+:root{--deep:#065A7E;--royal:#297EBB;--gold:#ECBC5C;--bg:#F3F8FA;--ink:#14323f;--muted:#587380;--line:#dce8ed;--white:#FDFEFD}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);overflow:hidden;overscroll-behavior:none;
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans Arabic","Noto Naskh Arabic",Tahoma,"Helvetica Neue",Arial,sans-serif;line-height:1.7}
+button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
+:focus-visible{outline:3px solid var(--gold);outline-offset:2px;border-radius:8px}
+
+#app{position:fixed;inset:0;width:100%;height:100%;border:0;background:var(--bg)}
+
+/* شعار الموقع نفسه */
+.logo{display:inline-flex;align-items:baseline;justify-content:center;direction:ltr;line-height:1;letter-spacing:.01em;
+  font-family:"Playfair Display",Georgia,"Times New Roman",serif;color:#fff;font-size:clamp(3rem,16vw,4.6rem);text-shadow:0 4px 18px rgba(0,0,0,.28)}
+.logo .H{font-size:1.4em;font-weight:800;margin-inline-end:.05em;color:transparent;-webkit-background-clip:text;background-clip:text;
+  background-image:linear-gradient(180deg,#FCE7A9 0%,#ECBC5C 50%,#C8982F 100%);filter:drop-shadow(0 3px 8px rgba(0,0,0,.3))}
+.logo .N{font-weight:500;font-style:italic;letter-spacing:.04em}
+
+/* شاشة الرسالة (انقطاع الإنترنت / تعذّر الوصول) */
+#msg{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+  padding:24px;text-align:center;color:#fff;
+  background:
+   radial-gradient(circle at 12% 16%,rgba(236,188,92,.24),transparent 36%),
+   radial-gradient(circle at 90% 88%,rgba(255,255,255,.14),transparent 42%),
+   linear-gradient(135deg,#043f58 0%,var(--deep) 40%,var(--royal) 100%)}
+#msg h1{margin:10px 0 0;font-size:clamp(1.25rem,1.05rem + 1.2vw,1.6rem);font-weight:700}
+#msg p{margin:0;font-size:clamp(1.05rem,.95rem + .6vw,1.25rem);color:#e6f1f6}
+.btn{min-height:48px;padding:.55em 1.6em;border-radius:14px;border:1.5px solid transparent;font-weight:700}
+.btn.gold{background:var(--gold);border-color:var(--gold);color:#3a2c05;margin-top:8px}
+.btn.primary{background:var(--deep);border-color:var(--deep);color:#fff}
+.btn.plain{background:transparent;color:var(--muted)}
+
+/* نافذة التثبيت: تظهر مرة واحدة فقط */
+#inst{position:fixed;z-index:5;inset-inline:12px;bottom:12px;max-width:440px;margin-inline:auto;
+  background:var(--white);border:1.5px solid var(--line);border-inline-start:5px solid var(--gold);border-radius:16px;
+  box-shadow:0 8px 28px rgba(6,90,126,.22);padding:14px 16px}
+#inst .row{display:flex;gap:12px;align-items:center}
+#inst img{width:48px;height:48px;border-radius:12px;flex:none}
+#inst h2{margin:0;font-size:1.05rem;color:var(--deep)}
+#inst p{margin:2px 0 0;font-size:.92rem;color:var(--muted)}
+#inst .acts{display:flex;gap:8px;justify-content:flex-start;margin-top:10px}
+#inst .share{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.2em;fill:none;stroke:var(--deep);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+</style>
+</head>
+<body>
+
+<noscript><p style="padding:24px;text-align:center">فعّل JavaScript لفتح الموقع.</p></noscript>
+
+<iframe id="app" title="H Notes" allow="fullscreen; clipboard-write" allowfullscreen></iframe>
+
+<section id="msg" role="alert" hidden>
+  <div class="logo" role="img" aria-label="H Notes"><span class="H">H</span><span class="N">Notes</span></div>
+  <h1 id="msgT"></h1>
+  <p id="msgB"></p>
+  <button id="msgBtn" class="btn gold" type="button">إعادة المحاولة</button>
+</section>
+
+<aside id="inst" role="dialog" aria-labelledby="instT" hidden>
+  <div class="row">
+    <img src="apple-touch-icon.png" alt="" width="48" height="48">
+    <div>
+      <h2 id="instT">ثبّت H Notes على شاشتك الرئيسية</h2>
+      <p id="instB"></p>
+    </div>
+  </div>
+  <div class="acts">
+    <button id="instGo" class="btn primary" type="button">تثبيت</button>
+    <button id="instNo" class="btn plain" type="button">ليس الآن</button>
+  </div>
+</aside>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ===== الإعدادات ===== */
+  var APP_URL = 'https://script.google.com/macros/s/AKfycbyAh07OX_96nmbQ01GcEftcQWsiFMapfmX_tUK2yKBUU_CJXv9YEZrkYuccX1I1P0_nlw/exec';
+  var READY_TIMEOUT = 35000;   // أقصى انتظار لإشارة «تم تحميل الموقع» (ملي ثانية)
+  var ASK_DAYS = 30;           // أقل مدة بين ظهورين لنافذة التثبيت لمن لم يثبّت
+  var K_INST = 'hn_shell_installed', K_ASK = 'hn_shell_asked';
+
+  /* ===== أدوات ===== */
+  var $ = function (id) { return document.getElementById(id); };
+  function get(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } }
+  function put(k, v) { try { window.localStorage.setItem(k, v); } catch (e) {} }
+  function isStandalone() {
+    try {
+      return window.navigator.standalone === true ||
+        window.matchMedia('(display-mode: standalone)').matches ||
+        window.matchMedia('(display-mode: fullscreen)').matches ||
+        window.matchMedia('(display-mode: minimal-ui)').matches;
+    } catch (e) { return false; }
+  }
+  var UA = navigator.userAgent || '';
+  var IOS = /iPhone|iPad|iPod/i.test(UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  var INAPP = /FBAN|FBAV|Instagram|Line\/|MicroMessenger|Snapchat|TikTok|; wv\)/i.test(UA);
+
+  /* ===== حالة التحميل ===== */
+  var attempt = 0, ready = false, failed = false, timer = null, msgKind = '';
+
+  function mountFrame() {
+    var old = $('app'); if (old) old.remove();
+    var f = document.createElement('iframe');
+    f.id = 'app'; f.title = 'H Notes';
+    f.setAttribute('allow', 'fullscreen; clipboard-write');
+    f.setAttribute('allowfullscreen', '');
+    f.src = APP_URL;
+    document.body.insertBefore(f, document.body.firstChild);
+  }
+  function unmountFrame() { var old = $('app'); if (old) old.remove(); }
+
+  function reach(url, noCors) {
+    var ctl = ('AbortController' in window) ? new AbortController() : null;
+    var t = setTimeout(function () { if (ctl) ctl.abort(); }, 7000);
+    var opts = { cache: 'no-store' };
+    if (noCors) opts.mode = 'no-cors';
+    if (ctl) opts.signal = ctl.signal;
+    return fetch(url, opts).then(function () { clearTimeout(t); return true; }, function () { clearTimeout(t); return false; });
+  }
+
+  var MSGS = {
+    offline: ['لا يوجد اتصال بالإنترنت', 'تأكد من اتصالك ثم أعد المحاولة.'],
+    site:    ['تعذّر الوصول إلى الموقع', 'تواصل مع حسن']
+  };
+  function showMsg(kind) {
+    msgKind = kind;
+    $('msgT').textContent = MSGS[kind][0];
+    $('msgB').textContent = MSGS[kind][1];
+    $('msg').hidden = false;
+    $('inst').hidden = true;
+  }
+  function fail(kind) {
+    if (failed) return;
+    failed = true; clearTimeout(timer); unmountFrame(); showMsg(kind);
+  }
+  // يفرّق بين: إنترنت الطالب مقطوع (offline) وبين: الإنترنت يعمل لكن الموقع لا يصل (site)
+  function classify(my) {
+    reach('ping.txt?t=' + Date.now(), false).then(function (own) {
+      if (ready || failed || my !== attempt) return;
+      fail(own ? 'site' : 'offline');
+    });
+  }
+  function start() {
+    attempt++; var my = attempt;
+    ready = false; failed = false; clearTimeout(timer);
+    $('msg').hidden = true;
+    if (navigator.onLine === false) { failed = true; unmountFrame(); showMsg('offline'); return; }
+    mountFrame();
+    reach('https://script.google.com/robots.txt', true).then(function (ok) {
+      if (!ok && !ready && !failed && my === attempt) classify(my);
+    });
+    timer = setTimeout(function () { if (!ready && !failed && my === attempt) classify(my); }, READY_TIMEOUT);
+  }
+
+  /* ===== نسخة احتياطية لبيانات الدخول (لأن سفاري على آيفون قد لا يحفظ بيانات الإطار المضمَّن) ===== */
+  var MKEYS = ['hn_d', 'hn_t', 'hn_n'];     // معرّف الجهاز، جلسة الدخول، الاسم
+  function fromOurFrame(src) {               // يقبل فقط رسائل الإطار الداخلي، لا أي نافذة أخرى
+    try {
+      var w = src;
+      for (var i = 0; i < 6 && w; i++) {
+        if (w.parent === window) return true;
+        if (w.parent === w) return false;
+        w = w.parent;
+      }
+    } catch (x) {}
+    return false;
+  }
+  function mirrorState() {
+    var st = {};
+    MKEYS.forEach(function (k) { var v = get('hn_m_' + k); if (v) st[k] = v; });
+    return st;
+  }
+
+  window.addEventListener('message', function (e) {
+    var d = e.data;
+    if (!d || typeof d !== 'object') return;
+    if (d.hn === 'ready') {
+      if (ready || failed) return;           // الرسالة بلا بيانات، فلا حاجة للتحقق من المصدر
+      ready = true; clearTimeout(timer);
+      setTimeout(function () { offerReady = true; maybeOffer(); }, 2500);
+      return;
+    }
+    if (d.hn !== 'ls-get' && d.hn !== 'ls') return;
+    if (!fromOurFrame(e.source)) return;
+    if (d.hn === 'ls-get') {
+      try { e.source.postMessage({ hn: 'ls-state', state: mirrorState() }, e.origin === 'null' ? '*' : e.origin); } catch (x) {}
+    } else if (MKEYS.indexOf(d.k) >= 0) {
+      if (d.op === 'set' && typeof d.v === 'string' && d.v.length <= 512) put('hn_m_' + d.k, d.v);
+      else if (d.op === 'del') { try { window.localStorage.removeItem('hn_m_' + d.k); } catch (x) {} }
+    }
+  });
+  window.addEventListener('offline', function () { if (!ready && !failed && $('app')) fail('offline'); });
+  window.addEventListener('online', function () { if (failed && msgKind === 'offline') start(); });
+  $('msgBtn').addEventListener('click', start);
+
+  /* ===== التثبيت: مرة واحدة، ولا يظهر لمن ثبّت ===== */
+  var deferred = null, offerReady = false, shown = false;
+
+  function eligible() {
+    if (isStandalone()) { put(K_INST, '1'); return false; }
+    if (get(K_INST)) return false;
+    var t = parseInt(get(K_ASK), 10) || 0;
+    if (t && Date.now() - t < ASK_DAYS * 864e5) return false;
+    return true;
+  }
+  function openSheet(kind) {
+    shown = true; put(K_ASK, String(Date.now()));
+    if (kind === 'ios') {
+      $('instB').innerHTML = 'اضغط زر المشاركة <svg class="share" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg> ثم اختر «إضافة إلى الشاشة الرئيسية».';
+      $('instGo').hidden = true; $('instNo').textContent = 'حسناً';
+    } else {
+      $('instB').textContent = 'يفتح مباشرة كتطبيق، بلا شريط المتصفح.';
+      $('instGo').hidden = false; $('instNo').textContent = 'ليس الآن';
+    }
+    $('inst').hidden = false;
+  }
+  function maybeOffer() {
+    if (!offerReady || shown || failed || !eligible()) return;
+    if (deferred) openSheet('android');
+    else if (IOS && !INAPP) openSheet('ios');
+  }
+  window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); deferred = e; maybeOffer(); });
+  window.addEventListener('appinstalled', function () { put(K_INST, '1'); deferred = null; $('inst').hidden = true; });
+  $('instNo').addEventListener('click', function () { $('inst').hidden = true; });
+  $('instGo').addEventListener('click', function () {
+    var d = deferred; $('inst').hidden = true;
+    if (!d) return;
+    deferred = null;
+    d.prompt();
+    d.userChoice.then(function (c) { if (c && c.outcome === 'accepted') put(K_INST, '1'); });
+  });
+
+  /* ===== انطلاق ===== */
+  if (isStandalone()) put(K_INST, '1');
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+  }
+  start();
+})();
+</script>
+</body>
+</html>
