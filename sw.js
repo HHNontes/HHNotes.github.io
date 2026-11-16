@@ -1,7 +1,7 @@
 /* H Notes shell — service worker
    الهدف: أن تفتح الصفحة حتى بلا إنترنت لتعرض رسالة «لا يوجد اتصال» بدل صفحة خطأ المتصفح.
    غيّر رقم النسخة أدناه إذا عدّلت index.html وأردت إجبار التحديث. */
-const CACHE = 'hn-shell-v5';
+const CACHE = 'hn-shell-v6';
 const ASSETS = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png'];
 
 self.addEventListener('install', function (e) {

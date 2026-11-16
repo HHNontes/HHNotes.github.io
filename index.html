@@ -88,6 +88,8 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
 <script>
 (function () {
   'use strict';
+  /* حماية من التضمين داخل صفحة أخرى (بديل _headers على GitHub، الذي لا يطبّقه) */
+  if (window.top !== window.self) { try { document.body.innerHTML = ''; } catch (e) {} return; }
 
   /* ===== الإعدادات ===== */
   var APP_URL = 'https://script.google.com/a/~/macros/s/AKfycbyAh07OX_96nmbQ01GcEftcQWsiFMapfmX_tUK2yKBUU_CJXv9YEZrkYuccX1I1P0_nlw/exec';
@@ -186,6 +188,25 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
     return st;
   }
 
+  /* ===== نسخة احتياطية لتخزين المحاضرات (ما تكتبه أي محاضرة في localStorage) ===== */
+  var LKP = 'hn_l_', LIDX = 'hn_l__idx';
+  var L_ONE = 600000, L_ALL = 3000000, L_MAX = 60;      // أقصى حجم لمحاضرة، وللكل، وعدد المحاضرات المحفوظة
+  function okId(s) { return typeof s === 'string' && /^[A-Za-z0-9_.-]{1,80}$/.test(s); }
+  function putOk(k, v) { try { window.localStorage.setItem(k, v); return true; } catch (e) { return false; } }
+  function idxRead() {
+    try { var a = JSON.parse(get(LIDX) || '[]'); return Array.isArray(a) ? a.filter(okId) : []; } catch (e) { return []; }
+  }
+  function lecDrop(id) { try { window.localStorage.removeItem(LKP + id); } catch (e) {} }
+  function lecSet(id, v) {
+    var idx = idxRead().filter(function (x) { return x !== id; });
+    var guard = 0;
+    while (!putOk(LKP + id, v) && idx.length && guard++ < 80) { lecDrop(idx.shift()); }   // امتلأ التخزين: احذف الأقدم
+    idx.push(id);
+    function total() { var n = 0; idx.forEach(function (x) { var t = get(LKP + x); if (t) n += t.length; }); return n; }
+    while (idx.length > 1 && (idx.length > L_MAX || total() > L_ALL)) { lecDrop(idx.shift()); }
+    put(LIDX, JSON.stringify(idx));
+  }
+
   window.addEventListener('message', function (e) {
     var d = e.data;
     if (!d || typeof d !== 'object') return;
@@ -195,9 +216,13 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
       setTimeout(function () { offerReady = true; maybeOffer(); }, 2500);
       return;
     }
-    if (d.hn !== 'ls-get' && d.hn !== 'ls') return;
+    if (d.hn !== 'ls-get' && d.hn !== 'ls' && d.hn !== 'lec-get' && d.hn !== 'lec-set') return;
     if (!fromOurFrame(e.source)) return;
-    if (d.hn === 'ls-get') {
+    if (d.hn === 'lec-get') {
+      try { e.source.postMessage({ hn: 'lec-state', id: d.id, v: okId(d.id) ? get(LKP + d.id) : null }, e.origin === 'null' ? '*' : e.origin); } catch (x) {}
+    } else if (d.hn === 'lec-set') {
+      if (okId(d.id) && typeof d.v === 'string' && d.v.length <= L_ONE) lecSet(d.id, d.v);
+    } else if (d.hn === 'ls-get') {
       try { e.source.postMessage({ hn: 'ls-state', state: mirrorState() }, e.origin === 'null' ? '*' : e.origin); } catch (x) {}
     } else if (MKEYS.indexOf(d.k) >= 0) {
       if (d.op === 'set' && typeof d.v === 'string' && d.v.length <= 512) put('hn_m_' + d.k, d.v);
